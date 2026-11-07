@@ -37,6 +37,9 @@ who sees menus, not code.
 - **New features are off by default**, each with its own switch (per language), and with
   sub-switches for the risky parts (for example "keep the gateway's min/max" or "gift on
   direct payment" - both off until the admin turns them on).
+- **Every path on its own.** When a bot has several paths (platforms in a downloader, features
+  in a shop), each path's captions and buttons are customized separately in 🎨; what is
+  really shared is labelled as shared. Details in the `telegram-bot-customization` skill.
 - **Three places for every feature:** the bot's admin menu, the web panel, and 🎨. A feature only
   in one of them is not finished.
 - **Admin texts are Persian only.** Customer texts exist in every supported language (Persian
@@ -189,6 +192,40 @@ must appear in the layout automatically, at a sensible default position, and mus
 
 More detail, including every screen and callback naming, in `skills/telegram-bot-customization/references/admin-screens.md`.
 
+## Paths: every path customizable on its own
+
+Most bots have several **paths**: branches that each send their own messages and buttons. A
+downloader has one per platform (Instagram, TikTok, X, YouTube…); a shop has one per feature
+(buy, renew, top-up, my services, test account, hourly account, referral…); a support bot has
+one per department. These are examples, not the list: a path is whatever the owner thinks of
+as "a part of my bot". The admin must be able to customize each path's captions and buttons
+**separately**: the TikTok result can say something different, with different buttons, from
+the Instagram one.
+
+- **A path registry.** One list of paths: `id`, admin label with an emoji, per-language
+  on/off switch, and the texts and button groups it owns. Adding a path means adding a row; it
+  then shows up by itself in 🎨, the web panel, 📐 layout and the feature switches. No path is
+  wired into the menus by hand.
+- **Keys carry the path.** `dl.instagram.caption`, `dl.tiktok.caption`, `dl.x.caption`; button
+  groups too (`dl.tiktok.result_buttons`). Do not reuse one key for several paths just
+  because today the text is the same: tomorrow the owner wants it different.
+- **Lookup order:** this path's override → the override saved for *all paths* → this path's
+  default → the shared default. Every path can be changed alone, and something meant to be
+  the same everywhere is still changed once.
+- **Know the path at the start of the flow** (from the link, the button, the command) and pass
+  it to every text and button lookup of that flow, including messages sent later (a cron, a
+  payment callback). Store it with the job or the order when the flow is asynchronous.
+- **Say what is shared.** When an item really is one for several paths (the channel link, a
+  payment button that appears in five places), the editor says so on screen: "🔗 مشترک بین ۳
+  مسیر: اینستاگرام، تیک‌تاک، توییتر". Otherwise it says "📍 فقط برای مسیر تیک‌تاک". The admin
+  never has to guess where a change will show.
+- **Two shortcuts** on every path item: `📋 کپی از مسیر دیگه` (take another path's text and
+  buttons as a start) and `🔗 اعمال روی همهٔ مسیرها` (save as the all-paths override).
+- **Default: separate.** Shared only when the thing is genuinely one (and then labelled).
+
+Screens and storage for this: `skills/telegram-bot-customization/references/admin-screens.md` (path picker, path group) and
+`skills/telegram-bot-customization/references/data-model.md` (registry, keys, resolver).
+
 ## Feature switches
 
 - A features screen per scope: "global" (whole bot) and "per language" (this tab only). Each row
@@ -233,7 +270,7 @@ admin in their own language.
 ## Before you say it is done
 
 Run through `skills/telegram-bot-customization/references/checklist.md`. In short: texts in every language, registry entry, 🎨
-item opens and edits, buttons through the shared renderer, switch defaults off, web panel shows
+item opens and edits, each path customizable on its own, buttons through the shared renderer, switch defaults off, web panel shows
 it, receiver-language checked, test on a rig with a fake Telegram API, and a "what's new" note
 for the admin that says where to find it (menu path, step by step).
 
@@ -255,6 +292,12 @@ Copy this into your notes and tick it honestly.
       premium emoji, colour, hide and layout work; back/close cannot be hidden.
 - [ ] The new button shows up in 📐 layout and can be moved.
 - [ ] Texts and extras are resolved in the receiver's language (crons, admin actions, referrals).
+- [ ] Every path (platform, feature, department…) is in the path registry and has its own 🎨
+      group; its texts and buttons open and change without touching the other paths.
+- [ ] Keys carry the path; the flow passes the path to every lookup, async messages included.
+- [ ] Items that are really shared say so on screen ("🔗 مشترک بین …"), the rest say
+      "📍 فقط برای …"; copy-from-path and apply-to-all work.
+- [ ] Each path has its own per-language on/off switch.
 - [ ] A new feature has a switch, per language unless truly global, **off by default**.
 - [ ] The web panel can see and change everything the bot can for this feature.
 - [ ] Stale buttons from old messages answer with a clear alert, never a PHP/Python error.
@@ -325,6 +368,23 @@ One list drives the bot's 🎨 menu and the web panel's pages.
 - Button groups get their own entries (a button group id plus the message key it belongs to).
 - An item id is never reused for something else.
 
+## 3b. Paths
+
+```php
+// one row per path; menus, web panel tabs, layout and switches are built from this list
+'paths' => [
+  'instagram' => ['label' => '📸 اینستاگرام', 'switch' => 'dl_instagram_on',
+                  'texts' => ['dl.instagram.ask', 'dl.instagram.caption', 'dl.instagram.error'],
+                  'buttons' => ['dl.instagram.result_buttons']],
+  'tiktok'    => ['label' => '🎵 تیک‌تاک',   'switch' => 'dl_tiktok_on',  …],
+  'x'         => ['label' => '🐦 توییتر',    'switch' => 'dl_x_on',       …],
+],
+```
+
+Overrides keep the normal maps (`texts[lang][key]`, `buttons[lang][key]`…). The all-paths
+override of a family of keys is stored under the key with `_all` in the path's place
+(`dl._all.caption`), so "apply to every path" is one row, and a path can still override it.
+
 ## 4. Resolver
 
 ```
@@ -334,6 +394,18 @@ function text(key, lang, receiver):
     v = defaults[lang][key]                  -> if non-empty: return v
     return defaults[PRIMARY][key] or key     # never empty
 ```
+
+With paths, a key `family.path.name` is looked up in this order, stopping at the first
+non-empty value:
+
+```
+overrides.texts[lang]["family.path.name"]      # this path, changed by the admin
+overrides.texts[lang]["family._all.name"]      # all paths, changed by the admin
+defaults[lang]["family.path.name"]             # this path's default text
+defaults[lang]["family._all.name"]             # the shared default text
+```
+
+Buttons, stickers, reactions and layout follow the same chain.
 
 Then, when sending: look up sticker/reaction for the same (lang, key), send the sticker first
 (remember its message id so the screen can remove it later), then the text, then set the
@@ -392,6 +464,39 @@ prefix, early in the update handler, returning "handled" so nothing else runs.
 Explains in a short quote what belongs here and any rule ("product has two captions: with and
 without categories; only one is active"), then sections and items. Buttons that edit how the
 *buttons* of a flow look ("🎨 ظاهر دکمه‌های …") sit under their own header, apart from texts.
+
+## Path picker (when the bot has paths)
+
+One button per path from the path registry, green when anything in it is customized, then the
+shared items:
+
+```
+🧭 <b>شخصی‌سازی مسیرها</b>
+هر مسیر کپشن و دکمه‌های خودش رو داره؛ یکی رو انتخاب کن.
+[✅🇮🇷 فارسی] [🇬🇧 English]
+[📸 اینستاگرام] [🎵 تیک‌تاک]       ← green = customized
+[🐦 توییتر]     [▶️ یوتیوب]
+[🔗 تنظیمات مشترک همهٔ مسیرها]
+[🔙 بازگشت] [❌ بستن]
+```
+
+## Path group
+
+The group screen for one path: its texts (ask for link, waiting, result caption, error), its
+button groups, its sticker. Each item shows where a change applies:
+
+```
+🎵 <b>تیک‌تاک</b> — 🇮🇷 فارسی
+[📝 کپشن نتیجه]   ← 📍 فقط برای تیک‌تاک
+[⏳ پیام «در حال دانلود…»]
+[❌ پیام خطا]
+[🔘 دکمه‌های زیر نتیجه]
+[📋 کپی از مسیر دیگه] [🔗 اعمال روی همهٔ مسیرها]
+[🔙 مسیرها]
+```
+
+On the item screen of a shared item the status block carries one more line:
+`🔗 مشترک بین ۳ مسیر: اینستاگرام، تیک‌تاک، توییتر`.
 
 ## Item screen
 
@@ -461,6 +566,9 @@ the bot never has settings the panel cannot reach (except things that only make 
 - **Texts**: group tabs from the registry, a search box, "only customized" filter, per item a
   textarea with the current text, the default shown beside it, a sticker file_id field, a reset
   link. Language tabs at the top.
+- **Paths**: when the bot has paths, the texts and buttons pages get path tabs (one per path
+  in the registry, plus "همهٔ مسیرها") under the language tabs; each item says whether it is
+  path-only or shared, and has "copy from path" and "apply to all paths".
 - **Buttons / looks**: per button group, rows of name / emoji / colour / side / hidden; a live
   preview of the keyboard; drag to reorder; row width.
 - **Features**: cards per feature with switches; a feature's settings inside its card.
