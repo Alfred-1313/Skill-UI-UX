@@ -19,9 +19,12 @@ body() { awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$1"; }
   echo
   echo "---"
   echo
-  echo "## Reference: done checklist"
-  echo
-  tail -n +2 skills/telegram-bot-customization/references/checklist.md
+  for ref in checklist data-model admin-screens web-panel self-update; do
+    echo
+    echo "---"
+    echo
+    sed '1s/^# /## Reference: /' "skills/telegram-bot-customization/references/$ref.md"
+  done
 } > AGENTS.md
 cp AGENTS.md GEMINI.md
 mkdir -p .github && cp AGENTS.md .github/copilot-instructions.md

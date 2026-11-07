@@ -12,7 +12,7 @@
 
 | اسکیل | کارش چیه |
 |---|---|
-| 🎨 **`telegram-bot-customization`** | یاد می‌ده سیستم «🎨 شخصی‌سازی» رو توی هر ربات بسازی: ادمین بتونه **هر متن، دکمه، استیکر، ری‌اکشن، ایموجی پریمیوم، رنگ دکمه، چیدمان و کلید روشن/خاموش** رو جدا برای هر زبان عوض کنه؛ هم از داخل ربات، هم از پنل وب. |
+| 🎨 **`telegram-bot-customization`** | یاد می‌ده سیستم «🎨 شخصی‌سازی» رو توی هر ربات بسازی: ادمین بتونه **هر متن، دکمه، استیکر، ری‌اکشن، ایموجی پریمیوم، رنگ دکمه، چیدمان و کلید روشن/خاموش** رو جدا برای هر زبان عوض کنه؛ هم از داخل ربات، هم از پنل وب. قابلیت **«🔄 آپدیت ربات»** رو هم دقیقاً مثل Ciro می‌سازه: آپدیت با یک دکمه از داخل ربات، بکاپ قبل از آپدیت، دست‌نخوردن تنظیمات و دیتابیس، برگشت خودکار اگه خراب شد، برگشت به نسخهٔ قبلی از داخل ربات، و اعلان «تازه‌ها» به ادمین‌ها. |
 | 🧭 **`bot-builder-style`** | سلیقه و روش کار خودت: جواب فارسی و روان، قابلیت جدید پیش‌فرض خاموش، هر قابلیت هم توی ربات و هم پنل وب و هم 🎨، پرداخت دقیق و بدون دوبار کسر یا دوبار ساخت، تست قبل از تحویل، یادداشت «تازه‌ها» برای ادمین تازه‌کار، و قوانین گیت. |
 
 ### ساختار فایل‌ها
@@ -27,6 +27,7 @@ skills/
 │       ├── data-model.md         ← شکل ذخیرهٔ متن‌ها، دکمه‌ها، استیکرها و تنظیمات
 │       ├── admin-screens.md      ← صفحه‌های ادمین، یکی‌یکی، با نمونهٔ متن
 │       ├── web-panel.md          ← صفحه‌های پنل وب
+│       ├── self-update.md        ← قابلیت «🔄 آپدیت ربات»، بکاپ، برگشت و «تازه‌ها» (مثل Ciro)
 │       └── checklist.md          ← چک‌لیست «تموم شد»
 └── bot-builder-style/
     └── SKILL.md
@@ -94,6 +95,7 @@ mkdir -p .claude/skills && cp -r Skill-UI-UX/skills/* .claude/skills/
 - «به رباتم یه بخش کد تخفیف اضافه کن.»
 - «پیام خوش‌آمد و دکمه‌های منوی اصلی باید از پنل ادمین قابل تغییر باشن.»
 - «رباتم رو دوزبانه کن (فارسی و انگلیسی).»
+- «به این پروژه قابلیت آپدیت از داخل ربات اضافه کن، مثل Ciro.»
 
 هوش مصنوعی خودش این کارها رو انجام می‌ده:
 - متن‌ها و دکمه‌ها رو قابل شخصی‌سازی می‌سازه.
@@ -143,7 +145,7 @@ mkdir -p .claude/skills && cp -r Skill-UI-UX/skills/* .claude/skills/
 
 Two portable AI skills extracted from building the [Ciro](https://github.com/Alfred-1313/Ciro) Telegram shop bot:
 
-- **telegram-bot-customization**: build a full admin-editable, per-language customization system (texts, buttons, stickers, reactions, premium emoji, colours, layout, feature switches) into any Telegram bot, in the bot and in a web panel.
+- **telegram-bot-customization**: build a full admin-editable, per-language customization system (texts, buttons, stickers, reactions, premium emoji, colours, layout, feature switches) into any Telegram bot, in the bot and in a web panel; plus a self-update feature built like Ciro's (update button, snapshot, automatic rollback, what's-new announcements).
 - **bot-builder-style**: one builder's working style and product taste (Persian replies, features off by default, bot + web panel + 🎨 parity, exact money handling, test before done, beginner-friendly release notes, git rules).
 
 Install: copy `skills/*` to `~/.claude/skills/` (Claude Code), upload `dist/*.skill` (Claude.ai), drop `AGENTS.md` / `GEMINI.md` / `.github/copilot-instructions.md` into a project (Codex, Cursor, Gemini CLI, Copilot), or paste `prompts/short-instructions.md` into ChatGPT or Gemini. Edit only `skills/`, then run `./build.sh`.

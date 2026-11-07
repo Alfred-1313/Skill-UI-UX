@@ -57,6 +57,10 @@ who sees menus, not code.
   approval or a webhook retry never charges, credits or builds twice; failures refund to the
   wallet and say so; min/max limits and gifts follow the admin's settings; every money event is
   reported to the admin group in its topic.
+- **Updates like Ciro:** when a project needs an update feature, build it the way Ciro does it
+  (button in the bot, snapshot first, config and database kept, automatic rollback, progress
+  bar in the same message, back to the previous version from the bot, admins told what is
+  new). The full design is in the `telegram-bot-customization` skill, `references/self-update.md`.
 - **Beginner admins:** after every change set, a "what's new" entry the admin sees in the bot:
   what it is, a concrete example, on/off by default, and the step-by-step path (1️⃣ 2️⃣ 3️⃣),
   plus the web panel path.
@@ -217,6 +221,15 @@ switches). Save without reloading the page (fetch + toast), show the new state i
   with the fix for longer ones. Never "unknown error".
 - Every list that can grow: paging, and search when long.
 
+## Self-update
+
+If the bot needs an update feature (an admin button that updates the bot, keeps config and
+data, snapshots first, rolls back on failure, and announces what is new), build it exactly as
+described in `skills/telegram-bot-customization/references/self-update.md`: the `version` file, the "🔄 آپدیت ربات" screen,
+request files picked up by root's cron watcher, the ten update steps shared with the server's
+management command, rollback to a snapshot from the bot, and `whatsnew.php` announced to every
+admin in their own language.
+
 ## Before you say it is done
 
 Run through `skills/telegram-bot-customization/references/checklist.md`. In short: texts in every language, registry entry, 🎨
@@ -226,8 +239,10 @@ for the admin that says where to find it (menu path, step by step).
 
 ---
 
-## Reference: done checklist
 
+---
+
+## Reference: Done checklist for any customer-facing change
 
 Copy this into your notes and tick it honestly.
 
@@ -248,3 +263,345 @@ Copy this into your notes and tick it honestly.
 - [ ] Tested on a local rig: fake Telegram API that logs calls, fake panel/payment APIs, a real
       database; menus crawled for errors in the log.
 - [ ] A what's-new entry for the admin, beginner friendly, with the menu path and the default.
+
+---
+
+## Reference: Data model
+
+Language-neutral. Any store works (a JSON column, a key-value table, files); what matters is the
+shape and the lookup order. The examples use JSON.
+
+## 1. Default texts (in the code base, one file per language)
+
+```php
+// lang/fa.php
+return [
+  'users' => [
+    'Balance' => [
+      'shortLine' => '💡 برای این خرید <b>{need}</b> کم داری.',
+      'directPayGone' => '⛔️ پرداخت مستقیم الان برای این مرحله در دسترس نیست.',
+    ],
+  ],
+];
+```
+
+A key is the dotted path: `users.Balance.shortLine`. Keys are stable forever; renaming a key
+loses every admin override saved under it, so add a new key instead and migrate.
+
+## 2. Overrides (in the database)
+
+```json
+{
+  "texts":     { "fa": { "users.Balance.shortLine": "💡 فقط {need} مونده!" }, "en": {} },
+  "stickers":  { "fa": { "users.text_start": "CAACAgIAAxkBAA…" } },
+  "reactions": { "fa": { "users.text_start": "❤️" } },
+  "buttons":   { "fa": { "users.sell.service_sell": { "0": {
+                    "text": "بستن", "emoji": "❌", "emojiIcon": "5368324170671202286",
+                    "pos": "right", "simple": false, "style": "danger", "hidden": false } } } },
+  "layout":    { "fa": { "main_menu": { "order": ["buy","test","services"], "rows": [2,1] } } },
+  "features":  { "fa": { "dpay_on": "0", "dpay_limits": "0" }, "en": { "dpay_on": "0" } }
+}
+```
+
+- `emojiIcon` is a premium (custom) emoji id; Telegram shows it on an inline button through
+  `icon_custom_emoji_id`, so the text itself carries no emoji then.
+- `style` is the Bot API button colour: `success` (green), `danger` (red), `primary` (blue).
+- Missing key = default. An empty string saved by mistake also means default.
+- Reset of one item deletes its keys in all five maps for that language only.
+
+## 3. Registry (in the code base)
+
+One list drives the bot's 🎨 menu and the web panel's pages.
+
+```php
+'dp_1' => ['label' => '💳 متن مرحلهٔ «پرداخت مستقیم»', 'key' => 'users.Balance.directPayCaption',
+           'group' => 'buyflow', 'section' => 'confirm'],
+'dp_3' => ['label' => '💰 سرویس این پرداخت قبلاً تحویل شده', 'key' => 'users.Balance.paidInvoiceTaken',
+           'group' => 'topup', 'section' => 'topup_done'],
+```
+
+- `label` is in the admin's language (it is an admin text).
+- `group` = a 🎨 group screen; `section` = a white header inside it.
+- Button groups get their own entries (a button group id plus the message key it belongs to).
+- An item id is never reused for something else.
+
+## 4. Resolver
+
+```
+function text(key, lang, receiver):
+    lang = receiver.lang if receiver else lang
+    v = overrides.texts[lang][key]           -> if non-empty: return v
+    v = defaults[lang][key]                  -> if non-empty: return v
+    return defaults[PRIMARY][key] or key     # never empty
+```
+
+Then, when sending: look up sticker/reaction for the same (lang, key), send the sticker first
+(remember its message id so the screen can remove it later), then the text, then set the
+reaction. Matching extras to a text by key is far more reliable than matching by content; if a
+legacy code base only has the final text at send time, match on the literal segments around the
+placeholders.
+
+## 5. Button renderer
+
+```
+function render(def, ov, callback):
+    text  = ov.text or def.text
+    style = ov.style or def.style
+    if ov.simple:       text = strip_leading_emoji(text)
+    elif ov.emojiIcon:  text = strip_leading_emoji(text); icon = ov.emojiIcon
+    elif ov.emoji:      text = place(ov.emoji, strip_leading_emoji(text), ov.pos)
+    return {text, callback_data: callback, style, icon_custom_emoji_id: icon}
+function visible(def, ov): return not ov.hidden or def.required   # back/close are required
+```
+
+## 6. Migrations
+
+Add columns and keys idempotently ("add if missing") at install, at update and lazily at first
+use. Never assume an upgrade ran. When the stored shape changes, keep reading the old shape.
+
+---
+
+## Reference: Admin screens
+
+All admin screens are edited in place (one message that changes), carry the language tabs when
+the content is per language, and end with a way back and `❌ بستن`.
+
+## Callback naming
+
+Short, prefixed, `|`-separated, ≤ 64 bytes (Telegram's limit): `bt_edit|fa|users.text_start`,
+`btact|sticker|fa|users.text_start`, `gbs|hub|fa|cf`, `dpay|tog|fa|limits`. One dispatcher per
+prefix, early in the update handler, returning "handled" so nothing else runs.
+
+## 🎨 main list
+
+```
+🎨 <b>شخصی‌سازی پیام‌های ربات</b>
+متنی که می‌خواهی تغییر دهی را انتخاب کن.
+⬜️ دکمه‌های سفید فقط تیتر بخش‌ان…
+🟢 دکمه سبز یعنی این مورد سفارشی شده: ✏️ متن  ❤️ ری‌اکشن  🖼 استیکر  🔘 دکمه‌ها
+[✅🇮🇷 فارسی] [🇬🇧 English]
+[💬 پیام‌های عمومی ربات]            ← white header (alert only)
+[👋 متن خوش‌آمدید] …               ← items, green when customized
+[🛒 پیام‌ها و ظاهر مراحل خرید]      ← a group with its own screen
+…
+[🔁 ریست همه به پیش‌فرض] [❌ بستن]
+```
+
+## Group screen
+
+Explains in a short quote what belongs here and any rule ("product has two captions: with and
+without categories; only one is active"), then sections and items. Buttons that edit how the
+*buttons* of a flow look ("🎨 ظاهر دکمه‌های …") sit under their own header, apart from texts.
+
+## Item screen
+
+See SKILL.md. Lines that show state: `✏️ متن: پیش‌فرض / سفارشی`, `🖼 استیکر: دارد ✅ / ندارد ❌`,
+`❤️ ری‌اکشن: …`, plus a toggle where the item has one (`✅ استیکر خوش‌آمد روشنه`).
+
+## Text edit prompt
+
+```
+✏️ متن جدید رو بفرست.
+می‌تونی از ایموجی پریمیوم و فرمت تلگرام استفاده کنی.
+<blockquote>متغیرها: {price} قیمت · {balance} موجودی</blockquote>
+[🔙 انصراف]
+```
+
+On a text that lost a placeholder: save it, but say which placeholder is now missing and that
+the value will not appear.
+
+## Button group screen
+
+```
+🔘 <b>دکمه‌های صفحهٔ تایید خرید</b> — 🇮🇷 فارسی
+[✅ تایید و پرداخت از کیف پول]  ← tap = that button's editor
+[💳 پرداخت مستقیم]
+[🔙 بازگشت]
+[📐 چیدمان] [🔁 ریست]
+```
+
+Button editor: `✏️ نام`, `😀 ایموجی`, `💎 ایموجی پریمیوم`, `↔️ سمت ایموجی`, `🎨 رنگ: سبز/قرمز/آبی/پیش‌فرض`,
+`🙈 پنهان / 👁 نمایان`, `🔁 ریست این دکمه`. Each tap redraws with the new state visible.
+
+## Main menu buttons (reply keyboard)
+
+The fixed main-menu buttons get their own hub: colour (separately for inline "glass" style and
+reply keyboard), emoji or a sticker sent on tap, layout (order and width), name and show/hide.
+Renaming a reply-keyboard button must keep the handler matching (match by key, not by the text
+the admin typed).
+
+## Features hub (per language)
+
+```
+📌 <b>وضعیت قابلیت‌های فروشگاه</b>
+هر دکمه یه قابلیت رو روشن یا خاموش می‌کنه؛ کافیه روی دکمه‌اش بزنی.
+✅ فعال | ❌ غیرفعال
+🌐 این تنظیمات برای هر زبان جداست…
+[✅🇮🇷 فارسی] [🇬🇧 English]
+[❌ 🔋 وضعیت حجم اضافه]
+[✅ 💳 دکمهٔ «پرداخت مستقیم» در صفحهٔ تایید]
+[⚙️ تنظیمات پرداخت مستقیم]
+```
+
+## What's-new screen
+
+A list of short entries the admin sees after an update: what changed, an example, whether it is
+on or off by default, and the exact path (`1️⃣ 🏬 تنظیمات فروشگاه ← 2️⃣ … ← 3️⃣ …`) plus the web
+panel path. Written for a beginner.
+
+---
+
+## Reference: Web panel
+
+The panel is a second door to the same data; it never has settings the bot cannot reach, and
+the bot never has settings the panel cannot reach (except things that only make sense in chat).
+
+## Pages that mirror 🎨
+
+- **Texts**: group tabs from the registry, a search box, "only customized" filter, per item a
+  textarea with the current text, the default shown beside it, a sticker file_id field, a reset
+  link. Language tabs at the top.
+- **Buttons / looks**: per button group, rows of name / emoji / colour / side / hidden; a live
+  preview of the keyboard; drag to reorder; row width.
+- **Features**: cards per feature with switches; a feature's settings inside its card.
+- **Lists** (users, orders, payments, services): date-range filter with presets (today, 7 days,
+  30 days, custom from–to), search, paging, every ID clickable to the profile.
+
+## Behaviour
+
+- Save without reloading (fetch/AJAX), toast "ذخیره شد", the new state drawn at once; a new item
+  appears without a manual refresh.
+- Works on a phone: no sideways scroll, touch scrolling inside tables and long lists.
+- Right-to-left for Persian, a Persian font (Vazirmatn), numbers formatted.
+- The panel's own chrome uses line icons (SVG), not emoji; emoji stay where they are the bot's
+  content (a button text the admin set).
+- Motion is short and purposeful; respect `prefers-reduced-motion`.
+- Log in with a username and password generated by the bot; the bot can reset them.
+
+---
+
+## Reference: Self-update: "🔄 آپدیت ربات" (build it exactly like this)
+
+When a bot project needs an update feature, build this design, from the Ciro bot. The owner
+updates from a button in the bot, sees a progress bar in the same message, never loses
+config or data, can go back to the previous version from the bot, and every admin is told
+what changed. The same steps also run from the server's management command, so there is
+**one** update path, not two.
+
+## Pieces
+
+| Piece | Where | Job |
+|---|---|---|
+| `version` file | repo root, one line (`1.0.4`) | the installed version; compared with the same file on the main branch |
+| Update screen | bot: ⚙️ تنظیمات عمومی ← 🔄 آپدیت ربات | shows versions and state, starts an update or a rollback |
+| Request files | the bot's own directory | how the bot (web user) asks root to act |
+| Root watcher | cron, every minute: `* * * * * flock -n /tmp/<cmd>_selfupdate.lock /usr/local/bin/<cmd> selfupdate-watch` | picks up requests and runs the real update |
+| Management command | `/usr/local/bin/<cmd>` (the installer itself, e.g. `Ciro`) | menu with install / update / backup / restore; `<cmd> update` is the same code the watcher runs |
+| `table.php` (migrations) | repo root | only creates missing tables and adds missing columns; safe to run any time |
+| `whatsnew.php` | repo root | history of release notes, announced to admins once after each update |
+
+## Why the split
+
+The bot runs as the web-server user and cannot replace its own files or restart anything. So
+it never updates itself directly: it writes a small request file in its directory, and root's
+watcher (installed by the installer as one crontab line, added once and matched by its command
+text) does the work within a minute. Everything that crosses from the bot to root is validated
+on both sides (fixed file names, snapshot names matched against a strict pattern).
+
+## The update screen
+
+```
+<blockquote><b>🔄 آپدیت ربات</b>
+🤖 @botname</blockquote>
+
+نسخه فعلی: <b>1.0.4</b>
+آخرین به‌روزرسانی: <b>1405/08/16 14:20</b>      ← Jalali for Persian, Gregorian otherwise
+
+✅ <b>آخرین نسخه را داری</b>                     ← or: 🆕 <b>نسخهٔ جدید آماده است: 1.0.5</b>
+تاریخ آخرین تغییرات: <b>2026-11-07</b>           ← date of the last whatsnew entry
+
+<blockquote>✅ تنظیمات، دیتابیس، پنل‌ها و فایل config دست‌نخورده می‌مانند. پیش از شروع یک بکاپ
+کامل گرفته می‌شود و اگر آپدیت به مشکل بخورد، ربات خودکار به همین نسخه برمی‌گردد.</blockquote>
+
+[🚀 شروع آپدیت]                 ← primary; on the latest version: [🔁 نصب دوباره‌ی همین نسخه] (success)
+[♻️ بازگشت به نسخه قبلی]        ← danger; only when snapshots exist
+```
+
+- The latest version is read from the raw `version` file on the main branch, cached for 10
+  minutes; a failed read is retried after one minute and the old value is kept meanwhile.
+- The start button stays on the latest version too ("reinstall"), because a push without a
+  version bump must still be installable.
+- While a job is pending or running, no buttons: one line "⏳ یک کار در جریان است. همین پیام
+  خودش به‌روز می‌شود." A failed run shows its reason.
+- "♻️ بازگشت به نسخه قبلی" opens a list of this bot's snapshots with their dates; picking one
+  asks once to confirm, then writes the rollback request. A callback carries only the snapshot's
+  date stamp (Telegram limits callback data to 64 bytes); the bot maps it back to the name.
+
+## Request and status files (in the bot directory)
+
+- `update_request` / `rollback_request` (with the snapshot name): the ask. The watcher claims
+  one by renaming it to `*.running`; a claim older than 30 minutes is treated as dead and
+  removed, so the screen can never stay "busy" for ever after a crash or reboot.
+- A context file written by the bot **in the admin's language**: chat id, message id, and the
+  three texts the watcher will put into that message (progress, done, failed) with
+  placeholders `{bar}`, `{percent}`, `{backup}`. The watcher is a shell script and knows no
+  languages; it only fills placeholders.
+- `update_status.json`: `{state: running|done|failed|restored|stale, detail, at}` for the
+  screen. `update_backups.json`: this bot's snapshots, newest first.
+- A busy check covers all of them: a second request is never written over the first, and an
+  update and a rollback are never asked for at the same time.
+
+## The steps (identical from the bot and from `<cmd> update`)
+
+0. Find the bot and its current version. An install of the original upstream project (same
+   config variables, no `version` file) is upgraded in place. Confirm once (the bot already
+   confirmed before writing the request).
+1. **Snapshot first.** `tar.gz` of the bot directory without logs, `.git`, backups and the
+   request/status files, named `pre-update_<botusername>_<YYYYmmdd>_<HHMMSS>.tar.gz`. Keep the
+   newest two per bot; never touch another bot's. If the snapshot fails, stop: nothing changed.
+2. **Download** the target archive; check the essential files are in it; delete any packaged
+   `config.php` so real credentials are never overwritten.
+3. **Dependencies** (composer, npm, pip...) are installed in the extracted copy first, so a
+   failure there changes nothing on the live bot.
+4. **Overlay** the new files onto the bot directory (copy over, never wipe), so whatever the
+   operator added (config, uploads, vendor, custom files) stays. Fix ownership and permissions.
+5. **Syntax-check** the core files (`php -l` or the language's equivalent). Any failure:
+   restore the snapshot automatically and report "update failed, previous version restored".
+6. **Migrate the database additively** (`table.php`: create missing tables, add missing
+   columns, fill defaults; never drop or rename). If it cannot run from the shell, try its URL;
+   if that fails too, say so and tell the admin to open it once.
+7. Repair only what is missing in the web server config; never overwrite a customized vhost.
+8. Check that the bot answers.
+9. Refresh the management command itself and make sure the watcher's cron line exists.
+10. **Tell every admin, in their own language**: "✅ ربات آپدیت شد", the bot's @username, the
+    domain, the new version, the time (Jalali | Gregorian), where the previous version's
+    snapshot is, and under it every what's-new entry they have not seen yet.
+
+During the run the watcher edits the admin's same message with a progress bar
+(`▰▰▰▱▱▱  45٪`) and, at the end, the done or failed text. A rollback follows the same steps
+with its own texts ("♻️ در حال بازگشت به نسخه قبلی…", "✅ ربات به نسخه قبلی برگشت.").
+
+## What's new (`whatsnew.php`)
+
+```php
+return [
+  ['n' => 76, 'date' => '2026-11-07',
+   'fa' => "<blockquote>🛠 <b>…title…</b>\n…what changed, an example, on/off by default,\n1️⃣ menu ← 2️⃣ … ← 3️⃣ …\n🌐 پنل وب: …</blockquote>",
+   'en' => "<blockquote>…</blockquote>"],
+];
+```
+
+- A history, oldest first; every change set **adds** one entry with the next `n`. An admin who
+  skipped updates is told every entry they missed, in order. Drop the oldest beyond ~15.
+- `storage/whatsnew_seen` keeps the last `n` announced. `table.php` announces what is pending,
+  once, at the end of each migration; a fresh install starts as "seen" instead of sending the
+  whole history.
+- Each entry is written for a beginner: what it is, a concrete example, whether it is on or off
+  by default, the exact path in the bot step by step, and the web panel path.
+- The version number is bumped only when the owner releases; pushing code alone does not bump it.
+
+## Several bots on one server
+
+A registry of installed bots (directory, username, domain). The watcher walks every bot
+directory; each bot only ever updates or rolls back itself, and snapshots are named after
+their bot.
