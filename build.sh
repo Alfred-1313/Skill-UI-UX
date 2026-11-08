@@ -19,7 +19,7 @@ body() { awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$1"; }
   echo
   echo "---"
   echo
-  for ref in checklist data-model admin-screens web-panel bot-stats self-update; do
+  for ref in checklist data-model admin-screens web-panel bot-stats status-reports self-update; do
     echo
     echo "---"
     echo
