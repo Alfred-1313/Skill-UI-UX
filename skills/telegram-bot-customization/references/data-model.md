@@ -27,9 +27,10 @@ loses every admin override saved under it, so add a new key instead and migrate.
   "texts":     { "fa": { "users.Balance.shortLine": "💡 فقط {need} مونده!" }, "en": {} },
   "stickers":  { "fa": { "users.text_start": "CAACAgIAAxkBAA…" } },
   "reactions": { "fa": { "users.text_start": "❤️" } },
-  "buttons":   { "fa": { "users.sell.service_sell": { "0": {
+  "buttons":   { "fa": { "users.sell.service_sell": { "close": {
                     "text": "بستن", "emoji": "❌", "emojiIcon": "5368324170671202286",
                     "pos": "right", "simple": false, "style": "danger", "hidden": false } } } },
+  "presentation": { "fa": { "buy.single.confirm": "normal" }, "en": {} },
   "layout":    { "fa": { "main_menu": { "order": ["buy","test","services"], "rows": [2,1] } } },
   "features":  { "fa": { "dpay_on": "0", "dpay_limits": "0" }, "en": { "dpay_on": "0" } }
 }
@@ -39,7 +40,14 @@ loses every admin override saved under it, so add a new key instead and migrate.
   `icon_custom_emoji_id`, so the text itself carries no emoji then.
 - `style` is the Bot API button colour: `success` (green), `danger` (red), `primary` (blue).
 - Missing key = default. An empty string saved by mistake also means default.
-- Reset of one item deletes its keys in all five maps for that language only.
+- Button overrides use stable IDs (`close`, `pay_wallet`), not current row indices. Map legacy
+  indices to IDs explicitly on migration so rearranging never restyles another action.
+- Presentation is normal by default; rich/article mode needs a compatible message type and API.
+  Registry capabilities (type, allowed extras, variables, supported modes) drive both editors.
+- Reset of one item clears text, extras, buttons, layout and presentation for the selected
+  language/context only. It does not turn off unrelated product features.
+- Distinguish missing from explicit values: `false` can override a true default, `""` can mean
+  an explicitly uncoloured button. Text emptiness still falls back to the default as above.
 
 ## 3. Registry (in the code base)
 
@@ -106,14 +114,23 @@ placeholders.
 
 ```
 function render(def, ov, callback):
-    text  = ov.text or def.text
-    style = ov.style or def.style
-    if ov.simple:       text = strip_leading_emoji(text)
-    elif ov.emojiIcon:  text = strip_leading_emoji(text); icon = ov.emojiIcon
-    elif ov.emoji:      text = place(ov.emoji, strip_leading_emoji(text), ov.pos)
+    # merge by field presence: an explicit false/empty value is not a missing value
+    effective = merge_fields_by_presence(def, ov)
+    text  = ov.text if present and non-empty else def.text
+    style = ov.style if field_present(ov, "style") else def.style
+    icon = none
+    if effective.simple:      text = strip_leading_emoji(text)
+    elif effective.emojiIcon: text = strip_leading_emoji(text); icon = effective.emojiIcon
+    elif effective.emoji:     text = place(effective.emoji, strip_leading_emoji(text), effective.pos)
     return {text, callback_data: callback, style, icon_custom_emoji_id: icon}
-function visible(def, ov): return not ov.hidden or def.required   # back/close are required
+function visible(def, ov):
+    hidden = ov.hidden if field_present(ov, "hidden") else def.hidden
+    return not hidden or def.required   # protect required exits and primary actions
 ```
+
+`simple` and other boolean fields use the same presence rule. Emit colour/custom-emoji fields
+only where the actual API/SDK supports them; normal emoji and readable labels are the fallback.
+The preview calls the same effective-value resolver as the real sender.
 
 ## 6. Migrations
 

@@ -71,14 +71,23 @@ See SKILL.md. Lines that show state: `✏️ متن: پیش‌فرض / سفار�
 ## Text edit prompt
 
 ```
-✏️ متن جدید رو بفرست.
+✏️ متن فعلی رو کپی کن، تغییر بده و دوباره بفرست.
 می‌تونی از ایموجی پریمیوم و فرمت تلگرام استفاده کنی.
 <blockquote>متغیرها: {price} قیمت · {balance} موجودی</blockquote>
 [🔙 انصراف]
 ```
 
-On a text that lost a placeholder: save it, but say which placeholder is now missing and that
-the value will not appear.
+Show a copyable source block with the effective current text and literal HTML tags (escaped
+for display), plus the default/reset action. Reject invalid markup with a precise error and
+keep the previous working text. Warn on omitted optional variables; essential transactional
+variables require correction or explicit review. Use the same validator on the web.
+
+For eligible full messages only, show `📰 حالت مقاله: خاموش / روشن` when the target API supports
+it. Explain the supported tags and normal-message fallback. Hide incompatible sticker, reaction
+or rich controls on alerts, fragments and media captions. Full rules: `content-editing.md`.
+
+Group and main-menu badges aggregate every child's changes, including buttons, layout and rich
+mode. Button editors show the effective current label/colour, not a hard-coded default.
 
 ## Button group screen
 

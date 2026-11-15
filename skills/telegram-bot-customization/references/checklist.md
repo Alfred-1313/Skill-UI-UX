@@ -8,8 +8,16 @@ Copy this into your notes and tick it honestly.
 - [ ] Each new text has a registry entry (label, key, group, section) and opens in 🎨 on every
       language tab; edit, sticker, reaction and reset work.
 - [ ] New buttons go through the shared renderer and belong to a button group; rename, emoji,
-      premium emoji, colour, hide and layout work; back/close cannot be hidden.
-- [ ] The new button shows up in 📐 layout and can be moved.
+      premium emoji, colour, hide and layout work; required navigation remains reachable.
+- [ ] The new button shows up in 📐 layout and can be moved; stable IDs keep overrides on the
+      right action after reorder/insertion, including migration from legacy indices.
+- [ ] Caption editors show current copyable source, variables and supported formatting. Bot
+      and web reject broken markup with the same error rules and retain the working text.
+- [ ] Output capabilities fit the item type (message/caption/alert/fragment/button). Unsupported
+      controls are absent. If rich mode is implemented, per-language scope, normal fallback,
+      safe disable and reset are checked; no blind duplicate send on timeout.
+- [ ] Normal/bulk purchase, status/delivery and gateway settings stay independent. Previews show
+      real defaults, explicit false/empty overrides work, and parent badges include child changes.
 - [ ] Texts and extras are resolved in the receiver's language (crons, admin actions, referrals).
 - [ ] Every path (platform, feature, department…) is in the path registry and has its own 🎨
       group; its texts and buttons open and change without touching the other paths.
@@ -24,6 +32,10 @@ Copy this into your notes and tick it honestly.
       writes a heartbeat shown on «⏱ وضعیت کرون‌ها».
 - [ ] A new feature has a switch, per language unless truly global, **off by default**.
 - [ ] The web panel can see and change everything the bot can for this feature.
+- [ ] Web saves preserve focus/scroll and refresh affected lists/counters. Pending, failed and
+      successful states are distinct; rapid choices cannot persist out of order.
+- [ ] Phone layouts fit; tables/cards keep labels and vertical touch scrolling works. Persian
+      typography and mixed LTR data, keyboard focus and reduced-motion mode are checked.
 - [ ] Stale buttons from old messages answer with a clear alert, never a PHP/Python error.
 - [ ] Money paths are idempotent: a second tap, a second approval or a retried webhook never
       charges, credits or builds twice; state is saved right after the external call succeeds.

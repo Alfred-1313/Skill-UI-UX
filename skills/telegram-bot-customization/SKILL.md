@@ -1,6 +1,6 @@
 ---
 name: telegram-bot-customization
-description: Build a complete admin-editable customization system (the "🎨 شخصی‌سازی" menu) into any Telegram bot, so the owner can change every customer-facing message, button, sticker, reaction, premium emoji, colour, order and on/off switch per language, from the bot and a web admin panel. Use this whenever you build or extend a Telegram bot in any language or framework, add a customer-facing message, button, screen or feature, design an admin panel or settings menu, give each path or feature its own captions and buttons (a downloader with Instagram / TikTok / X paths, a shop with buy / renew / top-up paths), add a self-update («🔄 آپدیت ربات», rollback, what's new) a statistics screen («📊 آمار ربات», web dashboard) or status reports («گزارش وضعیت» - report group, nightly report, cron status, uptime alerts), make a bot multilingual, or the user mentions 🎨, شخصی‌سازی, customization, editable texts, button colours, stickers, premium emoji, "per language", آمار or a bot web panel - even if they do not say "customization".
+description: Build or extend the 🎨 شخصی‌سازی system in Telegram bots of any language/framework. Use for editable texts, buttons, stickers, reactions, custom emoji, colours, layouts, per-language/path switches, bot/web admin parity, caption validation, output capabilities or optional rich/article messages. Also covers bot statistics (📊 آمار), status reports, self-update, rollback and beginner-friendly release notes. Use when adding customer-facing bot screens/features or when the owner asks for independent customization of flows, languages or gateways.
 ---
 
 # Telegram bot customization (🎨)
@@ -21,20 +21,23 @@ retrofitting 160 messages later, so treat it as part of every feature, not as an
 2. Find (or create) the override store and the resolver (see `references/data-model.md`).
 3. Find (or create) the registry: the single list that says which keys and button groups appear
    in 🎨, under which group and section, with which admin label.
-4. Read `references/checklist.md` before calling any feature done.
+4. Read `references/content-editing.md` for current-source editing, validation, independent
+   contexts and capability-aware output (including optional rich/article presentation).
+5. Read `references/checklist.md` before calling any feature done.
 
 If the bot already has some of this under other names, use what exists and extend it. Do not
 build a second parallel system.
 
-## The five things that must be editable
+## What must be editable
 
 | What | Per language | Stored as | Notes |
 |---|---|---|---|
 | Message text | yes | override text, or none = default | keep placeholders like `{price}` working; HTML or entities |
 | Message extras | yes | sticker file_id, reaction emoji, media | sticker is sent before the message and removed when that screen is replaced |
-| Buttons of a message | yes | per (message key, button index): name, emoji, premium emoji id, emoji side, plain mode, colour, hidden | back / close buttons can be restyled but never hidden |
+| Buttons of a message | yes | per (context, message key, stable button id): name, emoji, premium emoji id, emoji side, plain mode, colour, hidden | preserve required navigation; migrate legacy indices |
 | Layout | yes | order of buttons and how many per row | the "📐 چیدمان" editor |
 | Feature switches | yes, unless truly global | `feature[lang][key]` | new features default to **off** |
+| Presentation mode | yes, per eligible message/context | normal or rich/article | optional; off by default, capability checked, normal fallback |
 
 Admin-only texts (the admin menus themselves) do not need per-language overrides; they live in
 the admin's language only. Customer texts always exist in every supported language.
@@ -52,8 +55,12 @@ the admin's language only. Customer texts always exist in every supported langua
 - Buttons are built through one function (`render(def, override, callback)`), so colour, emoji,
   premium emoji and hiding work the same on every screen. Do not hand-build buttons for customer
   screens.
-- Overrides are data, never code. Validate on save: placeholders that the default has must still
-  be there (warn, do not silently break), HTML must be balanced, length within Telegram limits.
+- Overrides are data, never code. Validate on save using the same server-side rules in bot and
+  web: reject invalid/unsupported markup and keep the old value, enforce output-specific limits,
+  and explain missing variables. Optional variables may be omitted with a warning; essential
+  transactional data must be corrected or explicitly reviewed before it is hidden.
+- Resolve missing fields by presence, not truthiness: explicit `false` or a cleared colour
+  must override a non-empty default. Preview the same effective values used at send time.
 
 ## The 🎨 menu the admin sees
 
@@ -83,14 +90,16 @@ Item screen (one message):
 [❌ بستن]
 ```
 
-Editing a text: the admin sends the new text; premium emoji and formatting are kept (store the
+Editing a text: first show the copyable effective current source (literal tags escaped for
+display), a preview and the supported variables. The admin sends the new text; premium emoji
+and formatting are kept (store the
 entities or convert them to `<tg-emoji emoji-id="…">` HTML). Show the placeholders this text
-supports right in the prompt. After saving, redraw the item screen in place (edit the same
+supports right in the prompt. Reject broken markup and retain the working source. After saving, redraw the item screen in place (edit the same
 message).
 
 Button screen: list the message's buttons; for each: rename, emoji (normal or premium), emoji
 side (start/end), plain (no emoji), colour (`success` green / `danger` red / `primary` blue /
-default), hide/show (not for back/close), reset. Show state, not action: a hidden button shows
+default), hide/show (only when navigation stays usable), reset. Show state, not action: a hidden button shows
 "🙈 پنهان", not "show".
 
 Layout screen (📐): the buttons in their current rows; tap one to select, then move it
@@ -98,6 +107,15 @@ up/down/left/right or change how many sit in a row. Items added later (a new fea
 must appear in the layout automatically, at a sensible default position, and must be movable.
 
 More detail, including every screen and callback naming, in `references/admin-screens.md`.
+
+## Advanced editing and output
+
+Message type controls which settings are available: full messages, media captions, alerts,
+button labels and fragments have different capabilities and limits. Optional rich/article
+mode is per message/language/context, off by default, and needs a supported normal-message
+fallback. Parent groups reflect all child customizations, including button-only changes.
+Normal/bulk purchase, service status/delivery and gateway contexts keep independent stable
+identities. Full behaviour and review cases: `references/content-editing.md`.
 
 ## Paths: every path customizable on its own
 

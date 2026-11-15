@@ -1,15 +1,22 @@
 ---
 name: bot-builder-style
-description: The working style and product taste of a Persian-speaking bot builder - how to talk to them, how they want bots, admin menus, web panels, payments and releases built, and what they consider "done". Use this in every session with this person, whenever you build, fix, debug or extend a Telegram bot, a bot's web admin panel, an installer script or a sales/VPN/shop bot for them, and whenever they write in Persian about a bot, a panel (پنل), a feature (قابلیت), a bug (باگ) or an update (آپدیت) - even if they only ask a quick question.
+description: Alfred's working style and portable UI/UX taste inferred from Ciro. Use when building, reviewing or extending their Telegram bots, admin panels, dashboards, web apps or customer pages, or when they ask for their usual style (سلیقه من، مثل Ciro). Covers Persian communication, the night theme, mobile UX, complete customization, payments and releases; apply only the product modules relevant to the task.
 ---
 
 # Working with this builder
 
 They build Telegram sales bots (VPN shops on Marzban/Rebecca-type panels, with wallets,
 gateways, renewals, referrals) and the web panels and installers around them, and they reuse the
-same habits on every new bot. They are not a programmer by trade: they judge the result by
-using the bot. So results must work when tapped, and explanations must make sense to someone
-who sees menus, not code.
+same habits on every new bot. They judge the result by using the product. Results must work
+when tapped, and explanations must make sense through the screens and menus they see.
+
+## Apply the profile to the task
+
+Read `references/design-profile.md` for the visual tokens, mobile behaviour, editing taste
+and source evidence. On a different project, carry these preferences without requiring Ciro's
+brand, PHP stack or VPN features. A dashboard can use this taste without becoming a Telegram
+shop. Explicit user requests and the target project's constraints take precedence over inferred
+defaults. Read `telegram-bot-customization` when the task actually involves bot customization.
 
 ## Talking to them
 
@@ -27,7 +34,7 @@ who sees menus, not code.
 - A decision that is theirs (a repository name, public or private, turning something on by
   default, deleting data) is asked, briefly, with a recommendation. Everything else: decide and do.
 
-## Product taste
+## Product taste (apply bot-specific rules to bot projects)
 
 - **Everything customizable, per language.** Every customer-facing text and button can be edited
   from the bot's 🎨 menu and from the web panel, separately per language, with premium emoji,
@@ -49,24 +56,30 @@ who sees menus, not code.
   button sits below and returns exactly one step; a toggle flips at once with no confirmation and
   shows its state (✅ green / ❌ red); stale messages are removed; old buttons answer with a clear
   alert; no message silently vanishes; no duplicate messages.
-- **Web panel:** dark glass look, Vazirmatn font, right to left, SVG line icons for the panel's
-  own chrome, saves without reloading, lists refresh by themselves, date-range filters on every
-  list, every ID clickable to the profile, works on a phone, gentle motion (reduced-motion
-  respected).
+- **Web panel:** prefer the current «شب» look: charcoal background, purple accent, floating
+  glass sidebar and opaque, quietly bordered cards. Vazirmatn and RTL for Persian, isolated
+  LTR IDs, no tracking on joined script, SVG outline icons for the panel's own chrome. Preserve
+  focus/scroll on save and refresh affected lists/counters too. Composable date/search/status
+  filters, clickable user profiles, mobile row cards and gentle motion with reduced-motion
+  support. Theme choices remain editable; see `references/design-profile.md` for details.
+- **Editors show reality:** current copyable source, variables, effective button names/colours,
+  safe previews and scoped resets. Invalid HTML is rejected with a useful error; keep the last
+  working text. Contexts such as normal/bulk purchase and delivery/status stay independent.
+  Optional rich/article messages are off by default, capability checked and have a readable
+  normal-message fallback. See `content-editing.md` in the `telegram-bot-customization` skill.
 - **Money must be exact:** a purchase, a renewal or a top-up is settled (invoice active, wallet
   changed, payment marked) the moment the external service confirms; a second tap, a second
   approval or a webhook retry never charges, credits or builds twice; failures refund to the
   wallet and say so; min/max limits and gifts follow the admin's settings; every money event is
   reported to the admin group in its topic.
 - **📊 Statistics like Ciro:** every bot has «📊 آمار ربات» as the first admin button and the
-  same numbers on the web dashboard (details in `telegram-bot-customization`,
-  `references/bot-stats.md`); every new paid feature adds its lines there.
+  same numbers on the web dashboard (see `bot-stats.md` in `telegram-bot-customization`); every new paid feature adds its lines there.
 - **Status reports like Ciro:** a report group with topics, a nightly report, a cron status
-  screen and uptime alerts (`telegram-bot-customization`, `references/status-reports.md`).
+  screen and uptime alerts (see `status-reports.md` in `telegram-bot-customization`).
 - **Updates like Ciro:** when a project needs an update feature, build it the way Ciro does it
   (button in the bot, snapshot first, config and database kept, automatic rollback, progress
   bar in the same message, back to the previous version from the bot, admins told what is
-  new). The full design is in the `telegram-bot-customization` skill, `references/self-update.md`.
+  new). See `self-update.md` in `telegram-bot-customization` for the full design.
 - **Beginner admins:** after every change set, a "what's new" entry the admin sees in the bot:
   what it is, a concrete example, on/off by default, and the step-by-step path (1️⃣ 2️⃣ 3️⃣),
   plus the web panel path.
